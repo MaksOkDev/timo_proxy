@@ -126,7 +126,7 @@ module.exports = function ({ request, response, configs }) {
                     response.end(error);
                });
           }
-     }
+     } 
 
      const validated = proxy_methods.validate();
 
