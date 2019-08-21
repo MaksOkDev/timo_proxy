@@ -1,5 +1,6 @@
 const http = require('http');
 const url_parser = require('url');
+var zlib = require('zlib');
 
 module.exports = function ({ request, response, configs }) {
      const proxy_methods = {
@@ -54,42 +55,58 @@ module.exports = function ({ request, response, configs }) {
           },
           makeRequest(options, query) {
                const requestObject = http.request(options, (res) => {
-                    let response_body = '';
+                    if (configs.callbacks instanceof Array) {
+                         configs.callbacks.forEach(c => {
+                              if (typeof c === 'function') c();
+                         });
+                    } else {
+                         configs.callbacks();
+                    }
+               });
 
-                    res.on('data', (chunk) => {
-                         response_body += chunk;
-                    });
+               requestObject.on('response', (remote_response) => {
+                    if (configs.filterCookies && ('set-cookie' in remote_response.headers)) {
+                         const response_filter = this.needleCookies(false);
 
-                    res.on('end', () => {
-                         response.setStatus = 200;
-                         response.statusMessage = 'OK';
+                         remote_response.headers['set-cookie'] = remote_response.headers['set-cookie']
+                              .filter(c => response_filter.test(c));
+                    }
 
-                         if (configs.filterCookies && ('set-cookie' in res.headers)) {
-                              const response_filter = this.needleCookies(false);
+                    const encoding_type = this.analyzeHeaders(remote_response, response);
 
-                              res.headers['set-cookie'] = res.headers['set-cookie']
-                                   .filter(c => response_filter.test(c));
-                         }
+                    response.writeHead(remote_response.statusCode);
 
-                         for (const header in res.headers)
-                              response.setHeader(header, res.headers[header]);
-
-                         response.end(response_body);
-
-                         if (configs.callbacks instanceof Array) {
-                              configs.callbacks.forEach(c => {
-                                   if (typeof c === 'function') c();
-                              });
-                         } else {
-                              configs.callbacks();
-                         }
-                    });
+                    switch (encoding_type) {
+                         case 'gzip':
+                              remote_response.pipe(zlib.createGunzip()).pipe(response);
+                              break;
+                         case 'deflate':
+                              remote_response.pipe(zlib.createInflate()).pipe(response);
+                              break;
+                         case 'br':
+                              remote_response.pipe(zlib.createBrotliDecompress()).pipe(response);
+                              break;
+                         default:
+                              remote_response.pipe(response);
+                              break;
+                    }
                });
 
                if (this.need_body.includes(this.request_method))
                     requestObject.write(query);
 
                requestObject.end();
+          },
+          analyzeHeaders(remote_response, local_response) {
+               const except = ["server", "content-encoding"];
+
+               console.log(remote_response.headers);
+
+               for (const header in remote_response.headers)
+                    if (!except.includes(header))
+                         local_response.setHeader(header, remote_response.headers[header]);
+
+               return remote_response.headers['content-encoding'];
           },
           proxify() {
                new Promise((resolve, reject) => {
