@@ -1,6 +1,6 @@
 const http = require('http');
 const url_parser = require('url');
-var zlib = require('zlib');
+const zlib = require('zlib');
 
 module.exports = function ({ request, response, configs }) {
      const proxy_methods = {
