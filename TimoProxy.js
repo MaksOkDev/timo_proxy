@@ -100,8 +100,6 @@ module.exports = function ({ request, response, configs }) {
           analyzeHeaders(remote_response, local_response) {
                const except = ["server", "content-encoding"];
 
-               console.log(remote_response.headers);
-
                for (const header in remote_response.headers)
                     if (!except.includes(header))
                          local_response.setHeader(header, remote_response.headers[header]);
