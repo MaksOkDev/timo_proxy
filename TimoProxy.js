@@ -107,7 +107,7 @@ module.exports = function ({ request, response, configs }) {
                return remote_response.headers['content-encoding'];
           },
           proxify() {
-               new Promise((resolve, reject) => {
+               try {
                     if (this.need_body.includes(this.request_method)) {
                          let body = '';
 
@@ -119,25 +119,21 @@ module.exports = function ({ request, response, configs }) {
                          });
 
                          request.on('end', (data) => {
-                              resolve(body);
+                              const options = this.makeOptions();
+
+                              this.makeRequest(options, body);
                          });
 
                     } else if (this.without_body.includes(this.request_method)) {
                          this.client_query = url_parser.parse(request.url, true).search || '';
-
-                         resolve();
                     } else {
-                         reject("INVALID_REQUEST");
+                         throw new Error("INVALID_REQUEST");
                     }
-               }).then(info => {
-                    const options = this.makeOptions();
-
-                    this.makeRequest(options, info);
-               }).catch(error => {
+               } catch (error) {
                     response.setStatus = 500;
 
                     response.end(error);
-               });
+               }
           }
      }
 
