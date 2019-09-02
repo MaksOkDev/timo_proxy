@@ -107,7 +107,7 @@ module.exports = function ({ request, response, configs }) {
                return remote_response.headers['content-encoding'];
           },
           proxify() {
-               try {
+               new Promise((resolve, reject) => {
                     if (this.need_body.includes(this.request_method)) {
                          let body = '';
 
@@ -119,21 +119,25 @@ module.exports = function ({ request, response, configs }) {
                          });
 
                          request.on('end', (data) => {
-                              const options = this.makeOptions();
-
-                              this.makeRequest(options, body);
+                              resolve(body);
                          });
 
                     } else if (this.without_body.includes(this.request_method)) {
                          this.client_query = url_parser.parse(request.url, true).search || '';
+
+                         resolve();
                     } else {
-                         throw new Error("INVALID_REQUEST");
+                         reject("INVALID_REQUEST");
                     }
-               } catch (error) {
+               }).then(info => {
+                    const options = this.makeOptions();
+
+                    this.makeRequest(options, info);
+               }).catch(error => {
                     response.setStatus = 500;
 
                     response.end(error);
-               }
+               });
           }
      }
 
@@ -147,3 +151,4 @@ module.exports = function ({ request, response, configs }) {
           response.end(validated);
      }
 }
+
